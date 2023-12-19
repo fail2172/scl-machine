@@ -361,4 +361,51 @@ TEST_F(InferenceManagerBuilderTest, SingleUnsuccessfulApplyInference)
   EXPECT_FALSE(context.HelperCheckEdge(targetClass, argument, ScType::EdgeAccessConstPosPerm));
 }
 
+TEST_F(InferenceManagerBuilderTest, GenerationUniqueFormulas)
+{
+  ScMemoryContext & context = *m_ctx;
+
+  loader.loadScsFile(context, TEST_FILES_DIR_PATH + "singleApplyTest.scs");
+  initialize();
+
+  // Form input structures set of two structures. One of them consists one triple from premise and the other -- the
+  // second triple.
+  ScAddr const & inputStructure1 = context.HelperResolveSystemIdtf(INPUT_STRUCTURE1);
+  ScAddr const & inputStructure2 = context.HelperResolveSystemIdtf(INPUT_STRUCTURE2);
+  ScAddr const & targetClass = context.HelperFindBySystemIdtf(TARGET_NODE_CLASS);
+  ScAddrVector inputStructures{inputStructure1, inputStructure2};
+
+  // Get arguments set. It is a singleton
+  ScAddr const & argument = context.HelperResolveSystemIdtf(ARGUMENT);
+  ScAddrVector arguments{argument};
+
+  // Create output structure to generate structures in
+  ScAddr const & outputStructure = context.CreateNode(ScType::NodeConstStruct);
+
+  // Get formulas set to apply
+  ScAddr const & formulasSet = context.HelperResolveSystemIdtf(FORMULAS_SET);
+
+  // Form inference params config
+  InferenceParams const & inferenceParams{formulasSet, {}, inputStructures, outputStructure};
+
+  // Create inference manager with `strategy all` using director
+  InferenceConfig const & inferenceConfig{
+      GENERATE_UNIQUE_FORMULAS, REPLACEMENTS_ALL, TREE_ONLY_OUTPUT_STRUCTURE, SEARCH_IN_STRUCTURES};
+  std::unique_ptr<inference::InferenceManagerAbstract> iterationStrategy =
+      inference::InferenceManagerFactory::constructDirectInferenceManagerAll(&context, inferenceConfig);
+
+  // Apply inference with configured manager and params config
+  iterationStrategy->applyInference(inferenceParams);
+  iterationStrategy->applyInference(inferenceParams);
+  iterationStrategy->applyInference(inferenceParams);
+
+  ScTemplate checkResultTemplate;
+  checkResultTemplate.Triple(targetClass,ScType::EdgeAccessVarPosPerm,argument);
+
+  ScTemplateSearchResult checkResult;
+  m_ctx->HelperSearchTemplate(checkResultTemplate, checkResult);
+
+  EXPECT_TRUE(checkResult.Size() == 1);
+}
+
 }  // namespace inferenceManagerBuilderTest
